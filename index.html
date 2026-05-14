@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Pop: Game Penjumlahan 1 Digit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #f0fdf4; /* Warna hijau sangat muda (Tailwind green-50) */
+            overflow: hidden; /* Mencegah scroll saat bermain */
+            touch-action: manipulation; /* Mencegah zoom ganda pada perangkat sentuh */
+        }
+        
+        h1, .game-font {
+            font-family: 'Fredoka One', cursive;
+        }
+
+        .bubble {
+            box-shadow: inset -5px -5px 15px rgba(0, 0, 0, 0.1), 
+                        inset 5px 5px 15px rgba(255, 255, 255, 0.8),
+                        0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.1s ease, background-color 0.2s ease;
+        }
+
+        .bubble:active {
+            transform: scale(0.95);
+        }
+
+        /* Animasi pop saat jawaban benar/salah */
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .animate-pop-in {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+        
+        .animate-shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        /* Confetti effect (simplified CSS version) */
+        .confetti-piece {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #fcd34d;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        @keyframes fall {
+            0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+        }
+        
+        /* Floating particles background */
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.6);
+            pointer-events: none;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center relative bg-gradient-to-br from-green-100 to-blue-100">
+
+    <!-- Background Particles Container -->
+    <div id="particles-container" class="absolute inset-0 overflow-hidden z-0"></div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="z-10 flex flex-col items-center justify-center w-full max-w-md p-6 animate-pop-in">
+        <div class="bg-white rounded-3xl p-8 shadow-2xl w-full text-center border-4 border-indigo-200 bubble">
+            <div class="text-6xl mb-4">🎈</div>
+            <h1 class="text-5xl text-indigo-600 mb-2 game-font drop-shadow-md">Math Pop!</h1>
+            <p class="text-gray-600 mb-8 text-lg font-bold">Penjumlahan 1 Digit</p>
+            
+            <div class="mb-8">
+                <p class="text-gray-500 mb-2">Pilih Waktu Main:</p>
+                <div class="flex justify-center space-x-2">
+                    <button class="time-btn bg-indigo-100 text-indigo-700 hover:bg-indigo-200 py-2 px-4 rounded-full font-bold transition-colors border-2 border-indigo-300 selected-time" data-time="30">30s</button>
+                    <button class="time-btn bg-white text-gray-600 hover:bg-indigo-50 py-2 px-4 rounded-full font-bold transition-colors border-2 border-gray-200" data-time="60">60s</button>
+                    <button class="time-btn bg-white text-gray-600 hover:bg-indigo-50 py-2 px-4 rounded-full font-bold transition-colors border-2 border-gray-200" data-time="90">90s</button>
+                </div>
+            </div>
+
+            <button id="start-btn" class="w-full bg-gradient-to-r from-green-400 to-emerald-500 text-white game-font text-2xl py-4 rounded-full shadow-lg hover:from-green-500 hover:to-emerald-600 transform hover:scale-105 transition-all bubble">
+                Mulai Main!
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="hidden z-10 flex-col items-center justify-between w-full h-full max-w-lg p-4 sm:p-6 pb-8">
+        
+        <!-- Header (Score & Time) -->
+        <div class="w-full flex justify-between items-center bg-white/80 backdrop-blur-sm p-4 rounded-2xl shadow-sm mb-4">
+            <div class="flex items-center">
+                <span class="text-2xl mr-2">⭐</span>
+                <div class="flex flex-col">
+                    <span class="text-xs text-gray-500 font-bold uppercase tracking-wider">Skor</span>
+                    <span id="score-display" class="game-font text-3xl text-amber-500 leading-none">0</span>
+                </div>
+            </div>
+            <div class="flex flex-col items-end">
+                <span class="text-xs text-gray-500 font-bold uppercase tracking-wider">Sisa Waktu</span>
+                <span id="time-display" class="game-font text-3xl text-rose-500 leading-none">30</span>
+            </div>
+        </div>
+
+        <!-- Problem Area -->
+        <div class="flex-grow flex items-center justify-center w-full my-4 relative">
+            <!-- Feedback Icon (Check/X) -->
+            <div id="feedback-icon" class="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4 text-6xl opacity-0 transition-opacity duration-300 z-20">✅</div>
+            
+            <div id="problem-container" class="bg-white rounded-[3rem] p-8 sm:p-12 shadow-xl w-full text-center border-4 border-sky-200 bubble flex items-center justify-center min-h-[200px]">
+                <div class="flex items-center justify-center space-x-4 game-font text-6xl sm:text-7xl lg:text-8xl text-slate-700">
+                    <span id="num1" class="text-indigo-500 drop-shadow-sm">?</span>
+                    <span class="text-gray-400">+</span>
+                    <span id="num2" class="text-sky-500 drop-shadow-sm">?</span>
+                    <span class="text-gray-400">=</span>
+                    <span id="answer-box" class="text-gray-300 w-16 sm:w-24 text-center border-b-8 border-gray-200 pb-2 bg-gray-50 rounded-xl">?</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Numpad Area -->
+        <div class="w-full bg-white/90 p-4 sm:p-6 rounded-3xl shadow-lg border-2 border-gray-100">
+            <div class="grid grid-cols-5 gap-2 sm:gap-3 mb-2 sm:mb-3">
+                <!-- Numbers 0-4 -->
+                <button class="numpad-btn bubble bg-gradient-to-b from-blue-100 to-blue-200 text-blue-800 game-font text-3xl sm:text-4xl py-3 sm:py-4 rounded-2xl active:from-blue-200 active:to-blue-300" data-val="0">0</button>
+                <button class="numpad-btn bubble bg-gradient-to-b from-blue-100 to-blue-200 text-blue-800 game-font text-3xl sm:text-4xl py-3 sm:py-4 rounded-2xl active:from-blue-200 active:to-blue-300" data-val="1">1</button>
+                <button class="numpad-btn bubble bg-gradient-to-b from-blue-100 to-blue-200 text-blue-800 game-font text-3xl sm:text-4xl py-3 sm:py-4 rounded-2xl active:from-blue-200 active:to-blue-300" data-val="2">2</button>
+                <button class="numpad-btn bubble bg-gradient-to-b from-blue-100 to-blue-200 text-blue-800 game-font text-3xl sm:text-4xl py-3 sm:py-4 rounded-2xl active:from-blue-200 active:to-blue-300" data-val="3">3</button>
+                <button class="numpad-btn bubble bg-gradient-to-b from-blue-100 to-blue-200 text-blue-800 game-font text-3xl sm:text-4xl py-3 sm:py-4 rounded-2xl active:from-blue-200 active:to-blue-300" data-val="4">4</button>
+            </div>
+            <div class="grid grid-cols-5 gap-2 sm:gap-3 mb-2 sm:mb-3">
+                <!-- Numbers 5-9 -->
+                <button class="numpad-btn bubble bg-gradient-to-b from-purple-100 to-purple-200 text-purple-800 game-font text-3xl sm:text-4xl py-3 sm:py-4 rounded-2xl active:from-purple-200 active:to-purple-300" data-val="5">5</button>
+                <button class="numpad-btn bubble bg-gradient-to-b from-purple-100 to-purple-200 text-purple-800 game-font text-3xl sm:text-4xl py-3 sm:py-4 rounded-2xl active:from-purple-200 active:to-purple-300" data-val="6">6</button>
+                <button class="numpad-btn bubble bg-gradient-to-b from-purple-100 to-purple-200 text-purple-800 game-font text-3xl sm:text-4xl py-3 sm:py-4 rounded-2xl active:from-purple-200 active:to-purple-300" data-val="7">7</button>
+                <button class="numpad-btn bubble bg-gradient-to-b from-purple-100 to-purple-200 text-purple-800 game-font text-3xl sm:text-4xl py-3 sm:py-4 rounded-2xl active:from-purple-200 active:to-purple-300" data-val="8">8</button>
+                <button class="numpad-btn bubble bg-gradient-to-b from-purple-100 to-purple-200 text-purple-800 game-font text-3xl sm:text-4xl py-3 sm:py-4 rounded-2xl active:from-purple-200 active:to-purple-300" data-val="9">9</button>
+            </div>
+            <div class="grid grid-cols-5 gap-2 sm:gap-3">
+                <!-- Action Buttons & Numbers 10-18 -->
+                <button id="btn-clear" class="bubble bg-gradient-to-b from-rose-100 to-rose-200 text-rose-600 font-bold text-lg sm:text-xl py-3 sm:py-4 rounded-2xl col-span-1 flex items-center justify-center" aria-label="Hapus">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
+                    </svg>
+                </button>
+                
+                <!-- We need digits up to 18 for single digit addition (9+9), we will handle multi-digit input dynamically -->
+                <div class="col-span-3 flex items-center justify-center bg-gray-100 rounded-2xl px-2">
+                     <p class="text-sm text-gray-500 font-bold text-center">Ketuk angka untuk menjawab</p>
+                </div>
+                
+                <button id="btn-submit" class="bubble bg-gradient-to-b from-emerald-400 to-green-500 text-white font-bold text-xl py-3 sm:py-4 rounded-2xl col-span-1 flex items-center justify-center shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Pause/Quit button -->
+        <button id="quit-btn" class="absolute top-4 left-4 bg-white p-2 rounded-full shadow hover:bg-gray-100 transition text-gray-500">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Result Screen -->
+    <div id="result-screen" class="hidden z-20 flex-col items-center justify-center w-full h-full max-w-md p-6 bg-white/90 backdrop-blur-md absolute inset-0">
+        <div class="bg-white rounded-3xl p-8 shadow-2xl w-full text-center border-4 border-yellow-300 bubble animate-pop-in relative overflow-hidden">
+            <!-- Confetti container specific to result card -->
+            <div id="result-confetti" class="absolute inset-0 pointer-events-none z-0"></div>
+
+            <div class="relative z-10">
+                <h2 class="text-4xl text-emerald-600 mb-2 game-font drop-shadow-md">Waktu Habis!</h2>
+                <p class="text-gray-600 mb-6 font-bold text-lg">Kerja Bagus!</p>
+                
+                <div class="bg-gray-50 rounded-2xl p-6 mb-8 border border-gray-100">
+                    <p class="text-gray-500 mb-1 uppercase tracking-widest text-sm font-bold">Skor Akhir</p>
+                    <p id="final-score" class="game-font text-7xl text-amber-500 drop-shadow-sm mb-4">0</p>
+                    
+                    <div class="flex justify-center space-x-8 text-sm font-bold">
+                        <div class="text-green-600">
+                            <span id="correct-count">0</span> Benar
+                        </div>
+                        <div class="text-rose-500">
+                            <span id="wrong-count">0</span> Salah
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col space-y-3">
+                    <button id="play-again-btn" class="w-full bg-gradient-to-r from-blue-400 to-indigo-500 text-white game-font text-2xl py-4 rounded-full shadow-lg hover:from-blue-500 hover:to-indigo-600 transform hover:scale-105 transition-all bubble">
+                        Main Lagi
+                    </button>
+                    <button id="back-menu-btn" class="w-full bg-white text-gray-500 font-bold py-3 rounded-full hover:bg-gray-50 transition-colors">
+                        Kembali ke Menu
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- State Variables ---
+            let score = 0;
+            let timeLeft = 30;
+            let selectedTimeOption = 30;
+            let timerInterval;
+            let currentNum1 = 0;
+            let currentNum2 = 0;
+            let expectedAnswer = 0;
+            let userAnswer = '';
+            let isPlaying = false;
+            let stats = { correct: 0, wrong: 0 };
+
+            // --- DOM Elements ---
+            // Screens
+            const startScreen = document.getElementById('start-screen');
+            const gameScreen = document.getElementById('game-screen');
+            const resultScreen = document.getElementById('result-screen');
+            const particlesContainer = document.getElementById('particles-container');
+
+            // Start Screen Elements
+            const timeBtns = document.querySelectorAll('.time-btn');
+            const startBtn = document.getElementById('start-btn');
+
+            // Game Screen Elements
+            const scoreDisplay = document.getElementById('score-display');
+            const timeDisplay = document.getElementById('time-display');
+            const num1Display = document.getElementById('num1');
+            const num2Display = document.getElementById('num2');
+            const answerBox = document.getElementById('answer-box');
+            const numpadBtns = document.querySelectorAll('.numpad-btn');
+            const btnClear = document.getElementById('btn-clear');
+            const btnSubmit = document.getElementById('btn-submit');
+            const problemContainer = document.getElementById('problem-container');
+            const feedbackIcon = document.getElementById('feedback-icon');
+            const quitBtn = document.getElementById('quit-btn');
+
+            // Result Screen Elements
+            const finalScoreDisplay = document.getElementById('final-score');
+            const correctCountDisplay = document.getElementById('correct-count');
+            const wrongCountDisplay = document.getElementById('wrong-count');
+            const playAgainBtn = document.getElementById('play-again-btn');
+            const backMenuBtn = document.getElementById('back-menu-btn');
+            const resultConfettiContainer = document.getElementById('result-confetti');
+
+            // --- Audio Setup (Simple Synthesizer) ---
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            function playSound(type) {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                const now = audioCtx.currentTime;
+                
+                if (type === 'correct') {
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(600, now);
+                    oscillator.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                    gainNode.gain.setValueAtTime(0.3, now);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    oscillator.start(now);
+                    oscillator.stop(now + 0.3);
+                } else if (type === 'wrong') {
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.setValueAtTime(300, now);
+                    oscillator.frequency.exponentialRampToValueAtTime(100, now + 0.2);
+                    gainNode.gain.setValueAtTime(0.3, now);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                    oscillator.start(now);
+                    oscillator.stop(now + 0.2);
+                } else if (type === 'tick') {
+                    oscillator.type = 'square';
+                    oscillator.frequency.setValueAtTime(800, now);
+                    gainNode.gain.setValueAtTime(0.1, now);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+                    oscillator.start(now);
+                    oscillator.stop(now + 0.05);
+                } else if (type === 'end') {
+                    // Simple arpeggio
+                    [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+                        const osc = audioCtx.createOscillator();
+                        const gn = audioCtx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.value = freq;
+                        osc.connect(gn);
+                        gn.connect(audioCtx.destination);
+                        gn.gain.setValueAtTime(0, now + i * 0.1);
+                        gn.gain.linearRampToValueAtTime(0.2, now + i * 0.1 + 0.05);
+                        gn.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.5);
+                        osc.start(now + i * 0.1);
+                        osc.stop(now + i * 0.1 + 0.5);
+                    });
+                }
+            }
+
+            // --- Background Particles ---
+            function createParticles() {
+                const colors = ['#bbf7d0', '#bfdbfe', '#fef08a', '#fbcfe8']; // Tailwind colors
+                for (let i = 0; i < 20; i++) {
+                    const particle = document.createElement('div');
+                    particle.classList.add('particle');
+                    const size = Math.random() * 40 + 10;
+                    particle.style.width = `${size}px`;
+                    particle.style.height = `${size}px`;
+                    particle.style.left = `${Math.random() * 100}vw`;
+                    particle.style.top = `${Math.random() * 100}vh`;
+                    particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    particle.style.opacity = Math.random() * 0.5 + 0.2;
+                    
+                    // Simple animation
+                    const duration = Math.random() * 20 + 10;
+                    const delay = Math.random() * 5;
+                    particle.style.animation = `float ${duration}s ease-in-out ${delay}s infinite alternate`;
+                    
+                    particlesContainer.appendChild(particle);
+                }
+                
+                // Add keyframes for float dynamically
+                const style = document.createElement('style');
+                style.innerHTML = `
+                    @keyframes float {
+                        0% { transform: translateY(0) translateX(0); }
+                        100% { transform: translateY(-100px) translateX(50px); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            createParticles();
+
+            // --- Menu Logic ---
+            timeBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    // Reset classes
+                    timeBtns.forEach(b => {
+                        b.classList.remove('bg-indigo-100', 'text-indigo-700', 'border-indigo-300', 'selected-time');
+                        b.classList.add('bg-white', 'text-gray-600', 'border-gray-200');
+                    });
+                    // Set active class
+                    const target = e.target;
+                    target.classList.remove('bg-white', 'text-gray-600', 'border-gray-200');
+                    target.classList.add('bg-indigo-100', 'text-indigo-700', 'border-indigo-300', 'selected-time');
+                    
+                    selectedTimeOption = parseInt(target.getAttribute('data-time'));
+                });
+            });
+
+            startBtn.addEventListener('click', startGame);
+            playAgainBtn.addEventListener('click', startGame);
+            
+            backMenuBtn.addEventListener('click', () => {
+                resultScreen.classList.add('hidden');
+                startScreen.classList.remove('hidden');
+            });
+
+            quitBtn.addEventListener('click', () => {
+                endGame();
+                resultScreen.classList.add('hidden');
+                startScreen.classList.remove('hidden');
+            });
+
+            // --- Game Logic ---
+            function startGame() {
+                // Initialize audio context on first user interaction if not already
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                // Reset state
+                score = 0;
+                timeLeft = selectedTimeOption;
+                stats = { correct: 0, wrong: 0 };
+                userAnswer = '';
+                isPlaying = true;
+
+                // Update UI
+                scoreDisplay.innerText = score;
+                timeDisplay.innerText = timeLeft;
+                timeDisplay.classList.remove('text-rose-600', 'animate-pulse');
+                timeDisplay.classList.add('text-rose-500');
+                updateAnswerDisplay();
+                
+                // Switch screens
+                startScreen.classList.add('hidden');
+                resultScreen.classList.add('hidden');
+                gameScreen.classList.remove('hidden');
+                gameScreen.classList.add('flex');
+
+                generateProblem();
+                
+                // Clear any existing interval
+                if (timerInterval) clearInterval(timerInterval);
+                
+                // Start timer
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+
+            function generateProblem() {
+                // Single digit addition: 0-9
+                currentNum1 = Math.floor(Math.random() * 10);
+                currentNum2 = Math.floor(Math.random() * 10);
+                expectedAnswer = currentNum1 + currentNum2;
+                
+                // Reset user input for new problem
+                userAnswer = '';
+                updateAnswerDisplay();
+
+                // Animate numbers in
+                num1Display.style.opacity = '0';
+                num2Display.style.opacity = '0';
+                
+                setTimeout(() => {
+                    num1Display.innerText = currentNum1;
+                    num2Display.innerText = currentNum2;
+                    num1Display.style.opacity = '1';
+                    num2Display.style.opacity = '1';
+                    num1Display.classList.add('animate-pop-in');
+                    num2Display.classList.add('animate-pop-in');
+                    
+                    setTimeout(() => {
+                        num1Display.classList.remove('animate-pop-in');
+                        num2Display.classList.remove('animate-pop-in');
+                    }, 300);
+                }, 100);
+            }
+
+            function updateAnswerDisplay() {
+                if (userAnswer === '') {
+                    answerBox.innerText = '?';
+                    answerBox.classList.remove('text-slate-700');
+                    answerBox.classList.add('text-gray-300');
+                } else {
+                    answerBox.innerText = userAnswer;
+                    answerBox.classList.remove('text-gray-300');
+                    answerBox.classList.add('text-slate-700');
+                }
+            }
+
+            function showFeedback(isCorrect) {
+                feedbackIcon.innerText = isCorrect ? '✅' : '❌';
+                feedbackIcon.style.opacity = '1';
+                feedbackIcon.style.transform = 'translate(25%, -25%) scale(1.2)';
+                
+                if (isCorrect) {
+                    problemContainer.classList.add('border-green-400', 'bg-green-50');
+                    setTimeout(() => {
+                        problemContainer.classList.remove('border-green-400', 'bg-green-50');
+                    }, 300);
+                } else {
+                    problemContainer.classList.add('border-red-400', 'bg-red-50', 'animate-shake');
+                    setTimeout(() => {
+                        problemContainer.classList.remove('border-red-400', 'bg-red-50', 'animate-shake');
+                    }, 400);
+                }
+
+                setTimeout(() => {
+                    feedbackIcon.style.opacity = '0';
+                    feedbackIcon.style.transform = 'translate(25%, -25%) scale(1)';
+                }, 500);
+            }
+
+            // Handle Numpad Input
+            function handleNumberInput(val) {
+                if (!isPlaying) return;
+                playSound('tick');
+                
+                // Allow max 2 digits (max answer is 9+9=18)
+                if (userAnswer.length < 2) {
+                    // Prevent leading zero unless it's just '0'
+                    if (userAnswer === '0') {
+                        userAnswer = val;
+                    } else {
+                        userAnswer += val;
+                    }
+                    updateAnswerDisplay();
+                    
+                    // Auto submit if length is 2 (since max answer is 18)
+                    // Or if length is 1 and expected answer is single digit
+                    if (userAnswer.length === 2 || (userAnswer.length === 1 && expectedAnswer < 10 && parseInt(userAnswer) === expectedAnswer)) {
+                        checkAnswer();
+                    }
+                }
+            }
+
+            numpadBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    handleNumberInput(e.target.getAttribute('data-val'));
+                });
+            });
+
+            btnClear.addEventListener('click', () => {
+                if (!isPlaying || userAnswer === '') return;
+                playSound('tick');
+                userAnswer = userAnswer.slice(0, -1);
+                updateAnswerDisplay();
+            });
+
+            btnSubmit.addEventListener('click', () => {
+                if (!isPlaying || userAnswer === '') return;
+                checkAnswer();
+            });
+            
+            // Allow keyboard input
+            document.addEventListener('keydown', (e) => {
+                if (!isPlaying) return;
+                if (e.key >= '0' && e.key <= '9') {
+                    handleNumberInput(e.key);
+                } else if (e.key === 'Backspace') {
+                    btnClear.click();
+                } else if (e.key === 'Enter') {
+                    btnSubmit.click();
+                }
+            });
+
+            function checkAnswer() {
+                const ans = parseInt(userAnswer);
+                if (isNaN(ans)) return;
+
+                if (ans === expectedAnswer) {
+                    // Correct
+                    score += 10;
+                    stats.correct++;
+                    scoreDisplay.innerText = score;
+                    scoreDisplay.classList.add('animate-pop-in');
+                    setTimeout(() => scoreDisplay.classList.remove('animate-pop-in'), 300);
+                    
+                    playSound('correct');
+                    showFeedback(true);
+                    
+                    // Small delay before next problem
+                    setTimeout(generateProblem, 200);
+                } else {
+                    // Wrong
+                    stats.wrong++;
+                    score = Math.max(0, score - 5); // Penalty, minimum score 0
+                    scoreDisplay.innerText = score;
+                    
+                    playSound('wrong');
+                    showFeedback(false);
+                    
+                    // Clear input to try again
+                    userAnswer = '';
+                    updateAnswerDisplay();
+                }
+            }
+
+            function updateTimer() {
+                timeLeft--;
+                timeDisplay.innerText = timeLeft;
+                
+                if (timeLeft <= 10) {
+                    timeDisplay.classList.remove('text-rose-500');
+                    timeDisplay.classList.add('text-rose-600', 'animate-pulse');
+                    playSound('tick'); // Tick sound for last 10 seconds
+                }
+
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }
+
+            function endGame() {
+                isPlaying = false;
+                clearInterval(timerInterval);
+                
+                // Show Result Screen
+                gameScreen.classList.add('hidden');
+                gameScreen.classList.remove('flex');
+                resultScreen.classList.remove('hidden');
+                resultScreen.classList.add('flex');
+                
+                // Populate stats
+                finalScoreDisplay.innerText = score;
+                correctCountDisplay.innerText = stats.correct;
+                wrongCountDisplay.innerText = stats.wrong;
+                
+                playSound('end');
+                createConfetti();
+            }
+
+            // --- Effects ---
+            function createConfetti() {
+                resultConfettiContainer.innerHTML = '';
+                const colors = ['#fcd34d', '#34d399', '#60a5fa', '#f472b6', '#a78bfa'];
+                
+                for (let i = 0; i < 50; i++) {
+                    const confetti = document.createElement('div');
+                    confetti.classList.add('confetti-piece');
+                    
+                    // Randomize properties
+                    const left = Math.random() * 100;
+                    const animationDuration = Math.random() * 3 + 2;
+                    const animationDelay = Math.random() * 0.5;
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    
+                    confetti.style.left = `${left}%`;
+                    confetti.style.backgroundColor = color;
+                    confetti.style.animation = `fall ${animationDuration}s linear ${animationDelay}s forwards`;
+                    
+                    // Random shapes (square or circle)
+                    if (Math.random() > 0.5) {
+                        confetti.style.borderRadius = '50%';
+                    }
+                    
+                    resultConfettiContainer.appendChild(confetti);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
